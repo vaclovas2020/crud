@@ -9,6 +9,9 @@ import (
 /* CRUD action constant: Create new item */
 const CrudCreateOne string = "CreateOne"
 
+/* CRUD action constant: Create new item */
+const CrudCreateAll string = "CreateAll"
+
 /* CRUD action constant:  Find and return one item */
 const CrudReadOne string = "ReadOne"
 
@@ -20,6 +23,12 @@ const CrudUpdateOne string = "UpdateOne"
 
 /*CRUD action constant: Update all items */
 const CrudUpdateAll string = "UpdateAll"
+
+/* CRUD action constant: Delete one item */
+const CrudDeleteOne string = "DeleteOne"
+
+/*CRUD action constant: Delete all items */
+const CrudDeleteAll string = "DeleteAll"
 
 /* CRUD UserRole Admin */
 const UserRoleAdmin UserRole = "Admin"
@@ -62,19 +71,21 @@ type AuthHandler func(http.ResponseWriter, *http.Request) (UserRole, error)
 /* CrudInterface interface for use in CRUD operations by calling Create, ReadOne, ReadAll, Update or Delete func */
 type CrudInterface interface {
 	/* Create new item */
-	CreateOne(rw http.ResponseWriter, r *http.Request) error
+	CreateOne(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
+	/* Create new items */
+	CreateAll(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
 	/* Find and return one item */
-	ReadOne(rw http.ResponseWriter, r *http.Request) error
+	ReadOne(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
 	/* Filter and return all items */
-	ReadAll(rw http.ResponseWriter, r *http.Request) error
+	ReadAll(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
 	/* Update one item */
-	UpdateOne(rw http.ResponseWriter, r *http.Request) error
+	UpdateOne(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
 	/* Update all items */
-	UpdateAll(rw http.ResponseWriter, r *http.Request) error
+	UpdateAll(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
 	/* Delete one item */
-	DeleteOne(rw http.ResponseWriter, r *http.Request) error
+	DeleteOne(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
 	/* Delete all items */
-	DeleteAll(rw http.ResponseWriter, r *http.Request) error
+	DeleteAll(rw http.ResponseWriter, r *http.Request, ur *UserRole) error
 }
 
 /* Add CRUD operations handlers to mux *http.ServeMux */
@@ -87,35 +98,71 @@ func AddCrudHandlers(mux *http.ServeMux, one_slug string, all_slug string, permi
 				http.Error(rw, err.Error(), http.StatusForbidden)
 				return
 			}
-			webimizer.Get(rw, r, func(rw http.ResponseWriter, r *http.Request) {
-				if userRole.UserCan(permissions_map, CrudReadOne) {
-					if crudInterface.ReadOne(rw, r) != nil {
-						http.Error(rw, err.Error(), http.StatusInternalServerError)
-						return
+			webimizer.Post(rw, r, func(rw http.ResponseWriter, r *http.Request) {
+				if userRole.UserCan(permissions_map, CrudCreateOne) {
+					if crudInterface.CreateOne(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
 					}
 				}
 			})
-			webimizer.Post(rw, r, func(rw http.ResponseWriter, r *http.Request) {
-				if userRole.UserCan(permissions_map, CrudCreateOne) {
-					if crudInterface.CreateOne(rw, r) != nil {
-						http.Error(rw, err.Error(), http.StatusInternalServerError)
-						return
+			webimizer.Get(rw, r, func(rw http.ResponseWriter, r *http.Request) {
+				if userRole.UserCan(permissions_map, CrudReadOne) {
+					if crudInterface.ReadOne(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
 					}
 				}
 			})
 			webimizer.Put(rw, r, func(rw http.ResponseWriter, r *http.Request) {
 				if userRole.UserCan(permissions_map, CrudUpdateOne) {
-					if crudInterface.UpdateOne(rw, r) != nil {
-						http.Error(rw, err.Error(), http.StatusInternalServerError)
-						return
+					if crudInterface.UpdateOne(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
 					}
 				}
 			})
 			webimizer.Delete(rw, r, func(rw http.ResponseWriter, r *http.Request) {
-				if userRole.UserCan(permissions_map, CrudUpdateOne) {
-					if crudInterface.UpdateOne(rw, r) != nil {
-						http.Error(rw, err.Error(), http.StatusInternalServerError)
+				if userRole.UserCan(permissions_map, CrudDeleteOne) {
+					if crudInterface.DeleteOne(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
 						return
+					}
+				}
+			})
+		}),
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},
+	}.Build())
+	mux.HandleFunc(all_slug, webimizer.HttpHandlerStruct{
+		NotAllowHandler: GlobalNotAllowHandler,
+		Handler: webimizer.HttpHandler(func(rw http.ResponseWriter, r *http.Request) {
+			userRole, err := authHandler(rw, r)
+			if err != nil {
+				http.Error(rw, err.Error(), http.StatusForbidden)
+				return
+			}
+			webimizer.Post(rw, r, func(rw http.ResponseWriter, r *http.Request) {
+				if userRole.UserCan(permissions_map, CrudCreateAll) {
+					if crudInterface.CreateAll(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
+					}
+				}
+			})
+			webimizer.Get(rw, r, func(rw http.ResponseWriter, r *http.Request) {
+				if userRole.UserCan(permissions_map, CrudReadAll) {
+					if crudInterface.ReadAll(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
+					}
+				}
+			})
+			webimizer.Put(rw, r, func(rw http.ResponseWriter, r *http.Request) {
+				if userRole.UserCan(permissions_map, CrudUpdateAll) {
+					if crudInterface.UpdateAll(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
+					}
+				}
+			})
+			webimizer.Delete(rw, r, func(rw http.ResponseWriter, r *http.Request) {
+				if userRole.UserCan(permissions_map, CrudDeleteAll) {
+					if crudInterface.DeleteAll(rw, r, &userRole) != nil {
+						http.Error(rw, err.Error(), http.StatusBadRequest)
 					}
 				}
 			})
